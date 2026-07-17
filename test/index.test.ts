@@ -40,6 +40,27 @@ beforeAll(async () => {
 });
 
 describe("Agent Visibility template", () => {
+	it("serves the protected Art.Ron chat test page", async () => {
+		const res = await SELF.fetch(`${BASE}/`);
+		expect(res.status).toBe(200);
+		expect(res.headers.get("content-type")).toContain("text/html");
+		const html = await res.text();
+		expect(html).toContain("Assistente Art.Ron");
+		expect(html).toContain("Senha de teste");
+	});
+
+	it("rejects chat calls that do not have the internal test code", async () => {
+		const res = await SELF.fetch(`${BASE}/api/chat`, {
+			method: "POST",
+			headers: {
+				"content-type": "application/json",
+				"x-access-code": "wrong-code",
+			},
+			body: JSON.stringify({ message: "Olá" }),
+		});
+		expect(res.status).toBe(401);
+	});
+
 	it("serves /llms.txt as plain text with a Content-Signal header", async () => {
 		const res = await SELF.fetch(`${BASE}/llms.txt`);
 		expect(res.status).toBe(200);

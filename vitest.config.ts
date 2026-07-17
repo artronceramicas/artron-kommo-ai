@@ -12,7 +12,10 @@ export default defineWorkersProject({
 				},
 				miniflare: {
 					// Provide the admin secret for the mutating-route tests.
-					bindings: { ADMIN_TOKEN: "test-token" },
+					bindings: {
+						ADMIN_TOKEN: "test-token",
+						TEST_ACCESS_CODE: "test-code",
+					},
 				},
 			},
 		},
