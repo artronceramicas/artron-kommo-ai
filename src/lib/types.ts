@@ -70,4 +70,6 @@ export interface Env {
 	 * When unset, those routes are disabled (return 401).
 	 */
 	ADMIN_TOKEN?: string;
+	/** Secret used only by the internal chat test page. */
+	TEST_ACCESS_CODE?: string;
 }
