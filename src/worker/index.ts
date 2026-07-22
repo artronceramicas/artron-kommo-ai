@@ -43,6 +43,7 @@ import {
 } from "../lib/web-bot-auth";
 
 const DEFAULT_CHAT_MODEL = "@cf/google/gemma-4-26b-a4b-it";
+const FALLBACK_CHAT_MODEL = "@cf/meta/llama-3.1-8b-instruct-fast";
 
 const CHAT_INSTRUCTIONS = `
 Você é o assistente comercial em fase de testes do Ateliê Art.Ron Cerâmicas, em Curitiba.
@@ -195,6 +196,8 @@ function extractAiText(result: unknown): string {
 
 	const record = result as Record<string, unknown>;
 	if (typeof record.response === "string") return record.response.trim();
+	if (typeof record.content === "string") return record.content.trim();
+	if (typeof record.output_text === "string") return record.output_text.trim();
 
 	if (record.result && typeof record.result === "object") {
 		const nested = record.result as Record<string, unknown>;
@@ -204,11 +207,18 @@ function extractAiText(result: unknown): string {
 	if (!Array.isArray(record.choices) || record.choices.length === 0) return "";
 	const first = record.choices[0];
 	if (!first || typeof first !== "object") return "";
-	const message = (first as Record<string, unknown>).message;
+	const firstRecord = first as Record<string, unknown>;
+	if (typeof firstRecord.text === "string") return firstRecord.text.trim();
+	const message = firstRecord.message;
 	if (!message || typeof message !== "object") return "";
-	const content = (message as Record<string, unknown>).content;
+	const messageRecord = message as Record<string, unknown>;
+	const content = messageRecord.content;
 	if (typeof content === "string") return content.trim();
-	if (!Array.isArray(content)) return "";
+	if (!Array.isArray(content)) {
+		return typeof messageRecord.refusal === "string"
+			? messageRecord.refusal.trim()
+			: "";
+	}
 
 	return content
 		.map((part) => {
@@ -272,11 +282,24 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
 		const model = env.AI_MODEL || DEFAULT_CHAT_MODEL;
 		const result = (await env.AI.run(model as keyof AiModels, {
 			messages,
-			max_tokens: 350,
+			max_tokens: 900,
 			temperature: 0.3,
 		})) as unknown;
 
-		const reply = extractAiText(result);
+		let reply = extractAiText(result);
+		if (!reply) {
+			console.warn("Resposta principal vazia; acionando modelo alternativo.");
+			const fallbackResult = (await env.AI.run(
+				FALLBACK_CHAT_MODEL as keyof AiModels,
+				{
+					messages,
+					max_tokens: 400,
+					temperature: 0.3,
+				},
+			)) as unknown;
+			reply = extractAiText(fallbackResult);
+		}
+
 		if (!reply) {
 			return jsonResponse({ error: "O modelo não devolveu uma resposta válida." }, 502);
 		}
